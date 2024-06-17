@@ -858,7 +858,7 @@ class Stockfish:
             If there are no moves in the position, an empty list is returned.
 
             If `verbose` is `True`, the dictionary will also include the following keys: `SelectiveDepth`, `Time`,
-            `Nodes`, `NodesPerSecond`, `MultiPVLine`, and `WDL` (if available).
+            `Nodes`, `NodesPerSecond`, `MultiPVLine`, `PV`, and `WDL` (if available).
 
         Example:
             >>> moves = stockfish.get_top_moves(2, num_nodes=1000000, verbose=True)
@@ -946,6 +946,17 @@ class Stockfish:
                 move_evaluation["NodesPerSecond"] = self._pick(line, "nps")
                 move_evaluation["SelectiveDepth"] = self._pick(line, "seldepth")
 
+                # add moves from pv
+                pv_moves = []
+                pv_move_index = 1
+                while True:
+                    pv_move = self._pick(line, "pv", pv_move_index)
+                    if pv_move == "":
+                        break
+                    pv_moves.append(pv_move)
+                    pv_move_index += 1
+                move_evaluation["PV"] = " ".join(pv_moves)
+
                 # add wdl if available
                 if self.does_current_engine_version_have_wdl_option():
                     move_evaluation["WDL"] = " ".join(
@@ -1011,6 +1022,9 @@ class Stockfish:
         self._put("flip")
 
     def _pick(self, line: list[str], value: str = "", index: int = 1) -> str:
+        value_index = line.index(value)
+        if value_index + index >= len(line):
+            return ""
         return line[line.index(value) + index]
 
     def get_what_is_on_square(self, square: str) -> Optional[Piece]:

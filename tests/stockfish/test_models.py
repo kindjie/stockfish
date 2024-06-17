@@ -710,6 +710,7 @@ class TestStockfish:
                 "Centipawn",
                 "Mate",
                 "MultiPVLine",
+                "PV",
                 "NodesPerSecond",
                 "Nodes",
                 "SelectiveDepth",
