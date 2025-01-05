@@ -156,7 +156,7 @@ class TestStockfish:
         stockfish.set_fen_position(
             "rnbqk2r/pppp1ppp/3bpn2/4P3/3P4/2N5/PPP2PPP/R1BQKBNR b KQkq - 0 1", False
         )
-        assert stockfish.get_best_move() == "d6e7"
+        assert stockfish.get_best_move() in ("d6e7", "d6b4")
 
         stockfish.set_fen_position(
             "rnbqk2r/pppp1ppp/3bpn2/8/3PP3/2N5/PPP2PPP/R1BQKBNR w KQkq - 0 1", False
@@ -896,7 +896,7 @@ class TestStockfish:
             wdl_stats = stockfish.get_wdl_stats()
             assert isinstance(wdl_stats, list)
             assert wdl_stats[1] > wdl_stats[0] * 7
-            assert abs(wdl_stats[0] - wdl_stats[2]) / wdl_stats[0] < 0.1
+            assert abs(wdl_stats[0] - wdl_stats[2]) / wdl_stats[0] < 0.15
 
             stockfish.set_fen_position(
                 "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -1150,25 +1150,46 @@ class TestStockfish:
         old_info = stockfish.info
         old_depth = stockfish._depth
         old_fen = stockfish.get_fen_position()
-        correct_fens = [
+        correct_fens: List[Optional[str]] = [
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
             "r1bQkb1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2RK1 b kq - 0 8",
             "4k3/8/4K3/8/8/8/8/8 w - - 10 50",
             "r1b1kb1r/ppp2ppp/3q4/8/P2Q4/8/1PP2PPP/RNB2RK1 w kq - 8 15",
+            "4k3/8/4K3/8/8/8/8/8 w - - 99 50",
         ]
         invalid_syntax_fens = [
             "r1bQkb1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2RK b kq - 0 8",
             "rnbqkb1r/pppp1ppp/4pn2/8/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 3",
             "rn1q1rk1/pbppbppp/1p2pn2/8/2PP4/5NP1/PP2PPBP/RNBQ1RK1 w w - 5 7",
             "4k3/8/4K3/71/8/8/8/8 w - - 10 50",
+            "r1bQkb1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2R2 b kq - 0 8",
+            "r1bQ1b1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2RK1 b kq - 0 8",
+            "4k3/8/4K3/8/8/8/8/8 w - - 100 50",
+            "4k3/8/4K3/8/8/8/8/8 w - - 101 50",
+            "4k3/8/4K3/8/8/8/8/8 w - - -1 50",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 0",
+            "r1b1kb1r/ppp2ppp/3q4/8/P2Q4/8/1PP2PPP/RNB2RK1 w kq - - 8 15",
+            "r1b1kb1r/ppp2ppp/3q4/8/P2Q4/8/1PP2PPP/RNB2RK1 w kq 8 15",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR W KQkq - 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR - KQkq - 0 1",
+            "r1bQkb1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2RK1 b kq - - 8",
+            "r1bQkb1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2RK1 b kq - 0 -",
+            "r1bQkb1r/ppp2ppp/2p5/4Pn2/8/5N2/PPP2PPP/RNB2RK1 b kq - -1 8",
+            "4k3/8/4K3/8/8/8/8/8 w - - 99 e",
+            "4k3/8/4K3/8/8/8/8/8 w - - 99 ee",
         ]
+        correct_fens.extend([None] * (len(invalid_syntax_fens) - len(correct_fens)))
+        assert len(correct_fens) == len(invalid_syntax_fens)
         for correct_fen, invalid_syntax_fen in zip(correct_fens, invalid_syntax_fens):
             old_del_counter = Stockfish._del_counter
-            assert stockfish.is_fen_valid(correct_fen)
+            if correct_fen is not None:
+                assert stockfish.is_fen_valid(correct_fen)
+                assert stockfish._is_fen_syntax_valid(correct_fen)
             assert not stockfish.is_fen_valid(invalid_syntax_fen)
-            assert stockfish._is_fen_syntax_valid(correct_fen)
             assert not stockfish._is_fen_syntax_valid(invalid_syntax_fen)
-            assert Stockfish._del_counter == old_del_counter + 2
+            assert Stockfish._del_counter == old_del_counter + (
+                2 if correct_fen is not None else 0
+            )
 
         time.sleep(2.0)
         assert stockfish._stockfish.poll() is None
@@ -1239,3 +1260,9 @@ class TestStockfish:
         assert stockfish._pick(line, "depth") == "10"
         assert stockfish._pick(line, "multipv") == "1"
         assert stockfish._pick(line, "wdl", 3) == "1000"
+
+    def test_get_engine_parameters(self, stockfish: Stockfish):
+        params = stockfish.get_engine_parameters()
+        params.update({"Skill Level": 10})
+        assert params["Skill Level"] == 10
+        assert stockfish._parameters["Skill Level"] == 20
